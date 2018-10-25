@@ -796,6 +796,7 @@ class TextCell(Cell):
             halign=halign,
             valign=valign,
             color=self.style['textcolor'],
+            true_color=self.style.get("true_textcolor", None),
             layer=layer,
         )
         mtext.render(layout)
