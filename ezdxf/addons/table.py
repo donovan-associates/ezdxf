@@ -22,7 +22,6 @@ from copy import deepcopy
 from abc import abstractmethod
 
 from ezdxf.lldxf import const
-from .mtext import MText
 
 DEFAULT_TABLE_BGLAYER = 'TABLEBACKGROUND'
 DEFAULT_TABLE_FGLAYER = 'TABLECONTENT'
@@ -35,6 +34,8 @@ DEFAULT_CELL_LINESPACING = 1.5
 DEFAULT_CELL_XSCALE = 1.0
 DEFAULT_CELL_YSCALE = 1.0
 DEFAULT_CELL_TEXTCOLOR = const.BYLAYER
+DEFAULT_CELL_TEXT_TRUECOLOR = None
+DEFAULT_CELL_ATTACHMENT_POINT = const.MTEXT_TOP_CENTER
 DEFAULT_CELL_BG_COLOR = None
 DEFAULT_CELL_HMARGIN = 0.1
 DEFAULT_CELL_VMARGIN = 0.1
@@ -181,16 +182,6 @@ class Table(object):
         """
         style = deepcopy(self.get_cell_style('default'))
         style.update(kwargs)
-        if 'align' in kwargs:
-            align = kwargs.get('align')
-            halign, valign = const.TEXT_ALIGN_FLAGS.get(align)
-            style['halign'] = halign
-            style['valign'] = valign
-        else:
-            halign = kwargs.get('halign')
-            valign = kwargs.get('valign')
-            style['align'] = const.TEXT_ALIGNMENT_BY_FLAGS.get(halign, valign)
-
         self.styles[name] = style
         return style
 
@@ -335,16 +326,14 @@ class Style(dict):
             'yscale': DEFAULT_CELL_YSCALE,
             # dxf color index, ignored by block cells
             'textcolor': DEFAULT_CELL_TEXTCOLOR,
+            # dxf truecolor
+            'text_truecolor': DEFAULT_CELL_TEXT_TRUECOLOR,
             # text or block rotation in degrees
             'rotation': 0.,
             # Letters are stacked top-to-bottom, but not rotated
             'stacked': False,
-            # simple combined align parameter, like 'TOP_CENTER', see also MText.VALID_ALIGN
-            'align': 'TOP_CENTER',  # higher priority than 'haling' and 'valign'
-            # horizontal alignment (const.LEFT, const.CENTER, const.RIGHT)
-            'halign': const.CENTER,
-            # vertical alignment (const.TOP, const.MIDDLE, const.BOTTOM)
-            'valign': const.TOP,
+            # Where to attach the text
+            'attachment_point': DEFAULT_CELL_ATTACHMENT_POINT,
             # left and right margin in drawing units
             'hmargin': DEFAULT_CELL_HMARGIN,
             # top and bottom margin
@@ -776,31 +765,24 @@ class TextCell(Cell):
 
         left, right, top, bottom = self.get_workspace_coords(coords)
         style = self.style
-        halign = style['halign']
-        valign = style['valign']
         rotated = self.style['rotation']
         text = self.text
         if style['stacked']:
             rotated = 0.
             text = '\n'.join((char for char in self.text.replace('\n', ' ')))
-        xpos = (left, float(left+right)/2., right)[halign]
-        ypos = (bottom, float(bottom+top)/2., top)[valign-1]
-        mtext = MText(  # using dxfwrite MText() composite, because it works
-            text,
-            (xpos, ypos),
-            linespacing=self.style['linespacing'],
-            style=self.style['textstyle'],
-            height=self.style['textheight'],
-            rotation=rotated,
-            xscale=self.style['xscale'],
-            halign=halign,
-            valign=valign,
-            color=self.style['textcolor'],
-            true_color=self.style.get("true_textcolor", None),
-            layer=layer,
-        )
-        mtext.render(layout)
-
+        mtextattribs = {
+            #"linespacing": self.style['linespacing'],
+            "style": self.style['textstyle'],
+            "char_height": self.style['textheight'],
+            "rotation": rotated,
+            "attachment_point": self.style["attachment_point"],
+            "color": self.style['textcolor'],
+            "width": right - left,
+            "layer": layer,
+        }
+        if style.get("text_truecolor", None):
+            mtextattribs["true_color"] = self.style['text_truecolor']
+        layout.add_mtext(text.replace(";", ""), dxfattribs=mtextattribs).set_location((float(left+right)/2., float(bottom+top)/2.))
 
 class BlockCell(Cell):
     """
