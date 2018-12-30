@@ -1,4 +1,4 @@
-#coding: utf-8
+# coding: utf-8
 # Purpose: Create a structured HTML view of the DXF tags - not a CAD drawing!
 # Created: 20.05.13
 # Copyright (C) 2013, Manfred Moitzi
